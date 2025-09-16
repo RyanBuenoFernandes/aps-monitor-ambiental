@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard de Consumo</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <h1>Dashboard de Consumo de Recursos</h1>
+
+  <div id="msg-sucesso" class="hidden">
+    Ação concluída com sucesso!
+  </div>
+
+  <main class="container">
+    <div class="forms-section">
+      <form id="form-lancamento">
+        <h2>Novo Lançamento</h2>
+        <select id="recurso" required>
+          <option value="agua">Água (m³)</option>
+          <option value="energia">Energia (kWh)</option>
+        </select>
+        <input type="month" id="mes-ano" required>
+        <input type="number" id="consumo" placeholder="Valor consumido" required>
+        <button type="submit">Adicionar</button>
+      </form>
+
+      <form id="form-meta">
+        <h2>Definir Meta</h2>
+        <select id="recurso-meta">
+          <option value="agua">Água (m³)</option>
+          <option value="energia">Energia (kWh)</option>
+        </select>
+        <input type="number" id="valor-meta" placeholder="Valor da meta mensal" required>
+        <button type="submit">Salvar Meta</button>
+      </form>
+    </div>
+
+    <div class="dashboard-section">
+      <div class="filtros">
+        <button id="btn-agua" class="filtro-ativo">Ver Água</button>
+        <button id="btn-energia">Ver Energia</button>
+      </div>
+
+      <div class="cards-resumo">
+        <div class="card">
+          <h4>Último Consumo</h4>
+          <p id="ultimo-consumo">-</p>
+        </div>
+        <div class="card">
+          <h4>Média Mensal</h4>
+          <p id="media-mensal">-</p>
+        </div>
+        <div class="card">
+          <h4>Status vs Meta</h4>
+          <p id="status-meta">-</p>
+        </div>
+      </div>
+
+      <canvas id="consumoChart"></canvas>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
