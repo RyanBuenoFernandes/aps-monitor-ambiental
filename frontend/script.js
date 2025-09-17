@@ -1,200 +1,102 @@
-// --- CONFIGURAÇÕES E ELEMENTOS GLOBAIS ---
+// --- ELEMENTOS DA PÁGINA ---
+const formDenuncia = document.getElementById('form-denuncia');
+const nomeConsultaInput = document.getElementById('nome-consulta');
+const btnConsultar = document.getElementById('btn-consultar');
+const listaDenunciasDiv = document.getElementById('lista-denuncias');
+
 const apiUrl = 'http://localhost:3000';
-let consumoChart = null;
-let recursoAtual = 'agua';
-
-// Formulários
-const formLancamento = document.getElementById('form-lancamento');
-const formMeta = document.getElementById('form-meta');
-
-// Botões de Filtro
-const btnAgua = document.getElementById('btn-agua');
-const btnEnergia = document.getElementById('btn-energia');
-
-// NOVO: Elementos dos cards
-const ultimoConsumoEl = document.getElementById('ultimo-consumo');
-const mediaMensalEl = document.getElementById('media-mensal');
-const statusMetaEl = document.getElementById('status-meta');
-
-// NOVO: Elemento da mensagem de sucesso
-const msgSucessoEl = document.getElementById('msg-sucesso');
-
-// --- FUNÇÕES ---
-
-// Função principal para buscar dados e renderizar o dashboard
-async function atualizarDashboard() {
-    try {
-        const [leiturasRes, metasRes] = await Promise.all([
-            fetch(`${apiUrl}/leituras`),
-            fetch(`${apiUrl}/metas`)
-        ]);
-
-        if (!leiturasRes.ok || !metasRes.ok) {
-            throw new Error('Falha ao buscar dados do servidor.');
-        }
-
-        const leituras = await leiturasRes.json();
-        const metas = await metasRes.json();
-
-        const dadosFiltrados = leituras
-            .filter(l => l.recurso === recursoAtual)
-            .sort((a, b) => new Date(a.mesAno) - new Date(b.mesAno));
-
-        const labels = dadosFiltrados.map(l => l.mesAno);
-        const data = dadosFiltrados.map(l => l.consumo);
-        const metaAtual = metas[recursoAtual] || 0;
-        const metaData = labels.map(() => metaAtual);
-
-        renderizarGrafico(labels, data, metaData);
-        // NOVO: Chama a função para atualizar os cards
-        atualizarCards(dadosFiltrados, metaAtual);
-
-    } catch (error) {
-        console.error("Erro ao atualizar dashboard:", error);
-        // Lidar com o erro na UI se desejar
-    }
-}
-
-// NOVO: Função dedicada para atualizar os cards de resumo
-// NOVO: Função dedicada para atualizar os cards de resumo (COM A CORREÇÃO)
-function atualizarCards(dados, meta) {
-    if (dados.length === 0) {
-        ultimoConsumoEl.textContent = '-';
-        mediaMensalEl.textContent = '-';
-        statusMetaEl.textContent = '-';
-        statusMetaEl.className = '';
-        return;
-    }
-
-    // Card: Último Consumo
-    const ultimoConsumo = dados[dados.length - 1].consumo;
-    ultimoConsumoEl.textContent = parseFloat(ultimoConsumo).toFixed(2); // Adicionado toFixed para padronizar a exibição
-
-    // Card: Média Mensal
-    const soma = dados.reduce((acc, l) => acc + parseFloat(l.consumo), 0);
-    const media = soma / dados.length;
-    mediaMensalEl.textContent = media.toFixed(2); // Adicionado toFixed
-
-    // Card: Status da Meta
-    // --- AQUI ESTÁ A CORREÇÃO ---
-    // Comparamos os valores como números, e não como texto
-    if (parseFloat(ultimoConsumo) > parseFloat(meta)) {
-        statusMetaEl.textContent = 'Acima da Meta';
-        statusMetaEl.className = 'status-ruim'; // Aplica a classe de cor vermelha
-    } else {
-        statusMetaEl.textContent = 'Abaixo da Meta';
-        statusMetaEl.className = 'status-bom'; // Aplica a classe de cor verde
-    }
-}
-
-// Função para criar ou atualizar o gráfico (sem alterações)
-function renderizarGrafico(labels, data, metaData) {
-    const ctx = document.getElementById('consumoChart').getContext('2d');
-    if (consumoChart) {
-        consumoChart.destroy();
-    }
-    consumoChart = new Chart(ctx, { /* ... (código do gráfico sem alterações) ... */
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: `Consumo de ${recursoAtual === 'agua' ? 'Água (m³)' : 'Energia (kWh)'}`,
-                    data: data,
-                    backgroundColor: 'rgba(54, 162, 235, 0.6)',
-                    borderColor: 'rgba(54, 162, 235, 1)',
-                    borderWidth: 1
-                },
-                {
-                    label: 'Meta',
-                    data: metaData,
-                    type: 'line',
-                    borderColor: 'rgba(255, 99, 132, 1)',
-                    backgroundColor: 'transparent',
-                    borderDash: [5, 5],
-                    fill: false,
-                    pointRadius: 0,
-                }
-            ]
-        },
-        options: {
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-}
-
-// NOVO: Função para mostrar a mensagem de sucesso e escondê-la
-function mostrarMensagemSucesso() {
-    msgSucessoEl.classList.remove('hidden');
-    setTimeout(() => {
-        msgSucessoEl.classList.add('hidden');
-    }, 3000); // A mensagem some após 3 segundos
-}
 
 // --- EVENT LISTENERS ---
 
-// Adicionar novo lançamento
-formLancamento.addEventListener('submit', async (event) => {
+// Evento para o envio do formulário de nova denúncia
+formDenuncia.addEventListener('submit', async (event) => {
+    // Impede o recarregamento padrão da página
     event.preventDefault();
-    // ... (código de pegar os dados do form) ...
-    const novaLeitura = {
-        recurso: document.getElementById('recurso').value,
-        mesAno: document.getElementById('mes-ano').value,
-        consumo: document.getElementById('consumo').value,
-    };
 
-    await fetch(`${apiUrl}/leituras`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(novaLeitura),
+    // Cria um objeto FormData, que é especial para enviar formulários com arquivos
+    const formData = new FormData();
+
+    // Adiciona os campos de texto e o arquivo ao FormData
+    formData.append('nome_cidadao', document.getElementById('nome_cidadao').value);
+    formData.append('local_problema', document.getElementById('local_problema').value);
+    formData.append('descricao', document.getElementById('descricao').value);
+    // Para arquivos, pegamos o primeiro arquivo selecionado do input
+    formData.append('foto', document.getElementById('foto').files[0]);
+
+    try {
+        const response = await fetch(`${apiUrl}/denuncias`, {
+            method: 'POST',
+            // Ao enviar FormData, o navegador define o Content-Type correto
+            // (multipart/form-data) automaticamente. Não defina manualmente!
+            body: formData,
+        });
+
+        if (!response.ok) {
+            // Se o servidor retornar um erro, lança uma exceção
+            throw new Error('Falha ao enviar denúncia. Status: ' + response.status);
+        }
+
+        const result = await response.json();
+        alert(result.message); // Exibe a mensagem de sucesso
+        formDenuncia.reset(); // Limpa o formulário
+
+    } catch (error) {
+        console.error('Erro no envio:', error);
+        alert('Ocorreu um erro ao enviar sua denúncia. Tente novamente.');
+    }
+});
+
+
+// Evento para o botão de consultar denúncias
+btnConsultar.addEventListener('click', async () => {
+    const nome = nomeConsultaInput.value.trim();
+    if (!nome) {
+        alert('Por favor, digite um nome para consultar.');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${apiUrl}/denuncias/cidadao/${nome}`);
+        if (!response.ok) {
+            throw new Error('Falha ao buscar denúncias.');
+        }
+        const denuncias = await response.json();
+        exibirDenuncias(denuncias);
+    } catch (error) {
+        console.error('Erro na consulta:', error);
+        alert('Não foi possível buscar suas denúncias.');
+    }
+});
+
+
+// --- FUNÇÕES AUXILIARES ---
+
+// Função para renderizar as denúncias na tela
+// Função para renderizar as denúncias na tela (VERSÃO ATUALIZADA)
+function exibirDenuncias(denuncias) {
+    // Limpa a lista de resultados anteriores
+    listaDenunciasDiv.innerHTML = '';
+
+    if (denuncias.length === 0) {
+        listaDenunciasDiv.innerHTML = '<p>Nenhuma denúncia em análise ou resolvida encontrada para este nome.</p>';
+        return;
+    }
+
+    denuncias.forEach(denuncia => {
+        // Cria um "card" para cada denúncia
+        const card = document.createElement('div');
+        // Adiciona a classe de cor baseada no status
+        card.className = `denuncia-card status-${denuncia.status}`;
+
+        card.innerHTML = `
+      <h3>Local: ${denuncia.local_problema}</h3>
+      <p><strong>Descrição:</strong> ${denuncia.descricao}</p>
+      <p><strong>Data:</strong> ${new Date(denuncia.data_criacao).toLocaleDateString('pt-BR')}</p>
+      <p>Status: <span class="status">${denuncia.status.toUpperCase()}</span></p>
+      
+      <img src="${apiUrl}/denuncias/${denuncia.id}/foto" alt="Foto da denúncia" class="denuncia-imagem">
+    `;
+
+        listaDenunciasDiv.appendChild(card);
     });
-
-    formLancamento.reset();
-    atualizarDashboard();
-    mostrarMensagemSucesso(); // NOVO
-});
-
-// Atualizar meta
-formMeta.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    // ... (código de pegar os dados do form) ...
-    const meta = {
-        recurso: document.getElementById('recurso-meta').value,
-        valor: document.getElementById('valor-meta').value
-    };
-
-    await fetch(`${apiUrl}/metas`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(meta),
-    });
-
-    formMeta.reset();
-    atualizarDashboard();
-    mostrarMensagemSucesso(); // NOVO
-});
-
-// Botões de filtro
-btnAgua.addEventListener('click', () => {
-    recursoAtual = 'agua';
-    // NOVO: Lógica para destacar o botão ativo
-    btnEnergia.classList.remove('filtro-ativo');
-    btnAgua.classList.add('filtro-ativo');
-    atualizarDashboard();
-});
-
-btnEnergia.addEventListener('click', () => {
-    recursoAtual = 'energia';
-    // NOVO: Lógica para destacar o botão ativo
-    btnAgua.classList.remove('filtro-ativo');
-    btnEnergia.classList.add('filtro-ativo');
-    atualizarDashboard();
-});
-
-
-// --- INICIALIZAÇÃO ---
-atualizarDashboard();
+}

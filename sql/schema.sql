@@ -1,28 +1,27 @@
--- Cria o banco de dados se ele não existir
-CREATE DATABASE IF NOT EXISTS aps_monitor_db;
 
--- Usa o banco de dados que acabamos de criar
-USE aps_monitor_db;
 
--- Cria a tabela para armazenar as leituras de consumo
-CREATE TABLE IF NOT EXISTS leituras (
+-- Passo 2: Cria um novo banco de dados para o sistema de controle de denúncias.
+CREATE DATABASE IF NOT EXISTS controle_denuncias_db;
+-- Passo 3: Define o novo banco de dados como o padrão para os comandos a seguir.
+USE controle_denuncias_db;
+
+-- Passo 4: Cria a tabela "denuncias", que será a principal do nosso sistema.
+CREATE TABLE IF NOT EXISTS denuncias (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  recurso VARCHAR(50) NOT NULL,
-  mesAno VARCHAR(7) NOT NULL, -- Formato "YYYY-MM"
-  consumo DECIMAL(10, 2) NOT NULL,
-  data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  nome_cidadao VARCHAR(255) NOT NULL,
+  local_problema VARCHAR(255) NOT NULL,
+  descricao TEXT,
+
+  -- MEDIUMBLOB suporta arquivos de imagem de até 16MB,
+  -- ideal para fotos de celular.
+  foto MEDIUMBLOB NOT NULL,
+
+  -- O status padrão ao criar uma nova denúncia será 'pre_analise'.
+  -- Isso segue a regra de negócio que definimos.
+  status VARCHAR(50) NOT NULL DEFAULT 'pre_analise',
+
+  -- A data de criação será registrada automaticamente.
+  data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Cria a tabela para armazenar as metas
-CREATE TABLE IF NOT EXISTS metas (
-  recurso VARCHAR(50) PRIMARY KEY, -- 'agua' ou 'energia'
-  valor DECIMAL(10, 2) NOT NULL
-);
-
--- Insere as metas iniciais. Se já existirem, não faz nada.
--- O "ON DUPLICATE KEY UPDATE" evita erros se você rodar o script mais de uma vez.
-INSERT INTO metas (recurso, valor) VALUES ('agua', 1500)
-ON DUPLICATE KEY UPDATE valor = 1500;
-
-INSERT INTO metas (recurso, valor) VALUES ('energia', 25000)
-ON DUPLICATE KEY UPDATE valor = 25000;
+-- Fim do Script --
