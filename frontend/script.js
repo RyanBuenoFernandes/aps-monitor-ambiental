@@ -1,560 +1,314 @@
-// Global variables
-let complaints = []
-let draggedCard = null
-let currentDeleteId = null
-let currentPhotoId = null
+// --- CONSTANTES E VARIÁVEIS GLOBAIS ---
+const API_URL = 'http://localhost:3000';
+let map;
+let tempMarker = null;
+let goiasPolygon = null;
+let approvedMarkersLayer = null;
+let pendingMarkersLayer = null;
 
-const API_URL = "http://localhost:3000"
+// Ícone customizado para os pontos pendentes
+const yellowIcon = new L.Icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-yellow.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
 
-// DOM Elements
-const citizenBtn = document.getElementById("citizenBtn")
-const managerBtn = document.getElementById("managerBtn")
-const citizenView = document.getElementById("citizenView")
-const managerView = document.getElementById("managerView")
-const complaintForm = document.getElementById("complaintForm")
-const submitBtn = document.getElementById("submitBtn")
-const searchBtn = document.getElementById("searchBtn")
-const searchName = document.getElementById("searchName")
-const userComplaints = document.getElementById("userComplaints")
+// --- ELEMENTOS DO DOM ---
+const form = document.getElementById('ponto-form');
+const latitudeInput = document.getElementById('latitude');
+const longitudeInput = document.getElementById('longitude');
+const btnCidadao = document.getElementById('btn-cidadao');
+const btnGestor = document.getElementById('btn-gestor');
+const viewCidadao = document.getElementById('view-cidadao');
+const viewGestor = document.getElementById('view-gestor');
+const listaPendentes = document.getElementById('lista-pendentes');
+// NOVO: Elementos para a nova aba do gestor
+const btnTabPendentes = document.getElementById('btn-tab-pendentes');
+const btnTabAprovados = document.getElementById('btn-tab-aprovados');
+const tabPendentes = document.getElementById('tab-pendentes');
+const tabAprovados = document.getElementById('tab-aprovados');
+const listaAprovados = document.getElementById('lista-aprovados');
 
-// Modal elements
-const confirmationModal = document.getElementById("confirmationModal")
-const modalTitle = document.getElementById("modalTitle")
-const modalDescription = document.getElementById("modalDescription")
-const modalConfirm = document.getElementById("modalConfirm")
-const modalCancel = document.getElementById("modalCancel")
-const modalClose = document.getElementById("modalClose")
 
-const photoModal = document.getElementById("photoModal")
-const photoModalImage = document.getElementById("photoModalImage")
-const photoModalClose = document.getElementById("photoModalClose")
+// --- FUNÇÕES PRINCIPAIS ---
 
-// Tab elements
-const tabBtns = document.querySelectorAll(".tab-btn")
-const tabContents = document.querySelectorAll(".tab-content")
+// 1. INICIALIZA O MAPA
+async function inicializarMapa() {
+    const cantoSudoeste = L.latLng(-19.8, -53.3);
+    const cantoNordeste = L.latLng(-12.3, -45.8);
+    const limitesGoiás = L.latLngBounds(cantoSudoeste, cantoNordeste);
 
-// Initialize the application
-document.addEventListener("DOMContentLoaded", () => {
-  initializeEventListeners()
-  loadManagerComplaints()
-})
+    map = L.map('map', {
+        center: [-16.3, -49.5],
+        zoom: 7,
+        maxBounds: limitesGoiás,
+        minZoom: 7
+    });
 
-// Event Listeners
-function initializeEventListeners() {
-  // Navigation
-  citizenBtn.addEventListener("click", () => switchView("citizen"))
-  managerBtn.addEventListener("click", () => switchView("manager"))
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
-  // Tabs
-  tabBtns.forEach((btn) => {
-    btn.addEventListener("click", () => switchTab(btn.dataset.tab))
-  })
+    approvedMarkersLayer = L.layerGroup().addTo(map);
+    pendingMarkersLayer = L.layerGroup();
 
-  // Forms
-  complaintForm.addEventListener("submit", handleSubmitComplaint)
-  searchBtn.addEventListener("click", handleSearchComplaints)
-  searchName.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") handleSearchComplaints()
-  })
-
-  // Modals
-  modalClose.addEventListener("click", closeConfirmationModal)
-  modalCancel.addEventListener("click", closeConfirmationModal)
-  modalConfirm.addEventListener("click", confirmAction)
-  photoModalClose.addEventListener("click", closePhotoModal)
-
-  // Close modals on outside click
-  confirmationModal.addEventListener("click", (e) => {
-    if (e.target === confirmationModal) closeConfirmationModal()
-  })
-  photoModal.addEventListener("click", (e) => {
-    if (e.target === photoModal) closePhotoModal()
-  })
-}
-
-// Navigation Functions
-function switchView(view) {
-  if (view === "citizen") {
-    citizenBtn.classList.add("active")
-    managerBtn.classList.remove("active")
-    citizenView.classList.add("active")
-    managerView.classList.remove("active")
-  } else {
-    managerBtn.classList.add("active")
-    citizenBtn.classList.remove("active")
-    managerView.classList.add("active")
-    citizenView.classList.remove("active")
-    loadManagerComplaints()
-  }
-}
-
-function switchTab(tabName) {
-  tabBtns.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.tab === tabName)
-  })
-
-  tabContents.forEach((content) => {
-    content.classList.toggle("active", content.id === tabName + "Tab")
-  })
-}
-
-// Form Handling
-async function handleSubmitComplaint(event) {
-  event.preventDefault()
-
-  submitBtn.disabled = true
-  submitBtn.innerHTML = '<i class="spinner"></i> Enviando...'
-
-  const formData = new FormData(event.target)
-
-  try {
-    const response = await fetch(`${API_URL}/denuncias`, {
-      method: "POST",
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(`Falha ao enviar denúncia. Status: ${response.status}`)
-    }
-
-    const result = await response.json()
-    showAlert("Denúncia enviada com sucesso!", "success")
-    complaintForm.reset()
-  } catch (error) {
-    console.error("Erro no envio:", error)
-    showAlert("Ocorreu um erro ao enviar sua denúncia. Tente novamente.", "error")
-  } finally {
-    submitBtn.disabled = false
-    submitBtn.innerHTML = "Registrar Denúncia"
-  }
-}
-
-async function handleSearchComplaints() {
-  const name = searchName.value.trim()
-
-  if (!name) {
-    showAlert("Por favor, digite um nome para consultar.", "warning")
-    return
-  }
-
-  searchBtn.disabled = true
-  searchBtn.innerHTML = '<i class="spinner"></i> Consultando...'
-
-  try {
-    const response = await fetch(`${API_URL}/denuncias/cidadao/${encodeURIComponent(name)}`)
-
-    if (!response.ok) {
-      throw new Error("Falha ao buscar denúncias.")
-    }
-
-    const denuncias = await response.json()
-    displayUserComplaints(denuncias)
-  } catch (error) {
-    console.error("Erro na consulta:", error)
-    showAlert("Não foi possível buscar suas denúncias.", "error")
-    userComplaints.innerHTML = ""
-  } finally {
-    searchBtn.disabled = false
-    searchBtn.innerHTML = '<i class="fas fa-search"></i> Consultar'
-  }
-}
-
-// Display Functions
-function displayUserComplaints(complaintsData) {
-  if (complaintsData.length === 0) {
-    userComplaints.innerHTML = `
-            <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                <i class="fas fa-search" style="font-size: 2rem; margin-bottom: 1rem; display: block;"></i>
-                <p>Nenhuma denúncia encontrada para este nome.</p>
-            </div>
-        `
-    return
-  }
-
-  userComplaints.innerHTML = `
-        <h3 style="margin-bottom: 1rem; color: var(--text-primary);">Suas Denúncias</h3>
-        ${complaintsData
-      .map(
-        (complaint) => `
-            <div class="complaint-card fade-in">
-                <div class="complaint-header">
-                    <div class="complaint-info">
-                        <h4><i class="fas fa-map-marker-alt"></i> ${complaint.local_problema}</h4>
-                        <p><i class="fas fa-calendar"></i> ${formatDate(complaint.data_criacao)}</p>
-                    </div>
-                    <span class="status-badge ${complaint.status}">
-                        ${getStatusText(complaint.status)}
-                    </span>
-                </div>
-                <div class="complaint-description">${complaint.descricao}</div>
-                <div class="complaint-footer">
-                    <span><i class="fas fa-image"></i> Foto anexada</span>
-                </div>
-            </div>
-        `,
-      )
-      .join("")}
-    `
-}
-
-// Manager/Kanban Functions
-async function loadManagerComplaints() {
-  try {
-    const response = await fetch(`${API_URL}/denuncias`)
-    const data = await response.json()
-    complaints = data
-    updateKanbanBoard()
-  } catch (error) {
-    console.error("Erro ao carregar denúncias:", error)
-    showAlert("Erro ao carregar denúncias.", "error")
-  }
-}
-
-function updateKanbanBoard() {
-  const columns = {
-    pre_analise: document.getElementById("preAnaliseColumn"),
-    analise: document.getElementById("analiseColumn"),
-    resolvida: document.getElementById("resolvidaColumn"),
-  }
-
-  // Clear columns
-  Object.values(columns).forEach((column) => (column.innerHTML = ""))
-
-  // Group complaints by status
-  const groupedComplaints = {
-    pre_analise: [],
-    analise: [],
-    resolvida: [],
-  }
-
-  complaints.forEach((complaint) => {
-    if (groupedComplaints[complaint.status]) {
-      groupedComplaints[complaint.status].push(complaint)
-    }
-  })
-
-  // Update column counts
-  document.querySelector('[data-status="pre_analise"] .column-count').textContent = groupedComplaints.pre_analise.length
-  document.querySelector('[data-status="analise"] .column-count').textContent = groupedComplaints.analise.length
-  document.querySelector('[data-status="resolvida"] .column-count').textContent = groupedComplaints.resolvida.length
-
-  // Populate columns
-  Object.keys(groupedComplaints).forEach((status) => {
-    const column = columns[status]
-    const complaintsInStatus = groupedComplaints[status]
-
-    if (complaintsInStatus.length === 0) {
-      column.innerHTML = `
-                <div class="empty-column">
-                    <i class="fas fa-${getStatusIcon(status)}"></i>
-                    <p>Nenhuma denúncia nesta etapa</p>
-                </div>
-            `
-    } else {
-      column.innerHTML = complaintsInStatus.map((complaint) => createKanbanCard(complaint)).join("")
-    }
-  })
-
-  // Add drag and drop event listeners
-  addDragAndDropListeners()
-}
-
-function createKanbanCard(complaint) {
-  return `
-        <div class="kanban-card" draggable="true" data-id="${complaint.id}">
-            <div class="card-header-kanban">
-                <div>
-                    <div class="card-id">#${complaint.id}</div>
-                    <div class="card-citizen">
-                        <i class="fas fa-user"></i> ${complaint.nome_cidadao}
-                    </div>
-                </div>
-                <span class="status-badge ${complaint.status}">
-                    ${getStatusText(complaint.status)}
-                </span>
-            </div>
-            
-            <div class="card-location">
-                <i class="fas fa-map-marker-alt"></i>
-                <span>${complaint.local_problema}</span>
-            </div>
-            
-            <div class="card-description">${complaint.descricao}</div>
-            
-            <div class="card-footer">
-                <div class="card-date">
-                    <i class="fas fa-calendar"></i>
-                    ${formatDate(complaint.data_criacao)}
-                </div>
-                <div class="card-actions">
-                    <button class="btn-icon" onclick="viewPhoto(${complaint.id})" title="Ver foto">
-                        <i class="fas fa-image"></i>
-                    </button>
-                    <button class="btn-icon danger" onclick="deleteComplaint(${complaint.id})" title="Excluir">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-    `
-}
-
-// Drag and Drop Functions
-function addDragAndDropListeners() {
-  const cards = document.querySelectorAll(".kanban-card")
-  const columns = document.querySelectorAll(".column-content")
-
-  cards.forEach((card) => {
-    card.addEventListener("dragstart", handleDragStart)
-    card.addEventListener("dragend", handleDragEnd)
-  })
-
-  columns.forEach((column) => {
-    column.addEventListener("dragover", handleDragOver)
-    column.addEventListener("drop", handleDrop)
-    column.addEventListener("dragenter", handleDragEnter)
-    column.addEventListener("dragleave", handleDragLeave)
-  })
-}
-
-function handleDragStart(e) {
-  draggedCard = this
-  this.classList.add("dragging")
-  e.dataTransfer.effectAllowed = "move"
-  e.dataTransfer.setData("text/html", this.outerHTML)
-}
-
-function handleDragEnd(e) {
-  this.classList.remove("dragging")
-  draggedCard = null
-
-  // Remove drag-over class from all columns
-  document.querySelectorAll(".kanban-column").forEach((col) => {
-    col.classList.remove("drag-over")
-  })
-}
-
-function handleDragOver(e) {
-  e.preventDefault()
-  e.dataTransfer.dropEffect = "move"
-}
-
-function handleDragEnter(e) {
-  e.preventDefault()
-  this.closest(".kanban-column").classList.add("drag-over")
-}
-
-function handleDragLeave(e) {
-  if (!this.contains(e.relatedTarget)) {
-    this.closest(".kanban-column").classList.remove("drag-over")
-  }
-}
-
-function handleDrop(e) {
-  e.preventDefault()
-
-  if (draggedCard) {
-    const column = this.closest(".kanban-column")
-    const newStatus = column.dataset.status
-    const cardId = Number.parseInt(draggedCard.dataset.id)
-
-    column.classList.remove("drag-over")
-
-    // Find the complaint and update its status
-    const complaint = complaints.find((c) => c.id === cardId)
-    if (complaint && complaint.status !== newStatus) {
-      updateComplaintStatus(cardId, newStatus)
-    }
-  }
-}
-
-async function updateComplaintStatus(id, newStatus) {
-  try {
-    const response = await fetch(`${API_URL}/denuncias/${id}/status`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    })
-
-    if (!response.ok) {
-      throw new Error("Falha ao atualizar status")
-    }
-
-    // Update local data and refresh board
-    const complaint = complaints.find((c) => c.id === id)
-    if (complaint) {
-      complaint.status = newStatus
-    }
-
-    updateKanbanBoard()
-    showAlert("Status atualizado com sucesso!", "success")
-  } catch (error) {
-    console.error(`Erro ao atualizar status para ${newStatus}:`, error)
-    showAlert("Erro ao atualizar status.", "error")
-    loadManagerComplaints() // Reload to reset state
-  }
-}
-
-// Modal Functions
-function deleteComplaint(id) {
-  currentDeleteId = id
-  modalTitle.textContent = "Excluir Denúncia"
-  modalDescription.textContent = `Você tem certeza que deseja excluir a denúncia #${id}? Esta ação não pode ser desfeita.`
-  modalConfirm.textContent = "Confirmar Exclusão"
-  modalConfirm.className = "btn-danger"
-  showConfirmationModal()
-}
-
-function viewPhoto(id) {
-  currentPhotoId = id
-  photoModalImage.src = `${API_URL}/denuncias/${id}/foto`
-  photoModalImage.alt = `Foto da denúncia #${id}`
-  showPhotoModal()
-}
-
-function showConfirmationModal() {
-  confirmationModal.classList.add("active")
-  document.body.style.overflow = "hidden"
-}
-
-function closeConfirmationModal() {
-  confirmationModal.classList.remove("active")
-  document.body.style.overflow = ""
-  currentDeleteId = null
-}
-
-function showPhotoModal() {
-  photoModal.classList.add("active")
-  document.body.style.overflow = "hidden"
-}
-
-function closePhotoModal() {
-  photoModal.classList.remove("active")
-  document.body.style.overflow = ""
-  currentPhotoId = null
-}
-
-async function confirmAction() {
-  if (currentDeleteId) {
     try {
-      const response = await fetch(`${API_URL}/denuncias/${currentDeleteId}`, {
-        method: "DELETE",
-      })
+        const response = await fetch(`goias.geojson?v=${new Date().getTime()}`);
+        if (!response.ok) throw new Error(`Erro ao buscar o arquivo: ${response.statusText}`);
+        const goiasData = await response.json();
 
-      if (!response.ok) {
-        throw new Error("Falha ao deletar denúncia")
-      }
+        goiasPolygon = turf.multiPolygon(goiasData.features[0].geometry.coordinates);
+        const goiasCoords = goiasData.features[0].geometry.coordinates[0][0].map(coord => [coord[1], coord[0]]);
+        const worldRectangle = [[90, -180], [90, 180], [-90, 180], [-90, -180]];
 
-      // Remove from local array
-      complaints = complaints.filter((c) => c.id !== currentDeleteId)
-      updateKanbanBoard()
-      showAlert("Denúncia excluída com sucesso!", "success")
+        L.polygon([worldRectangle, goiasCoords], {
+            color: '#212529', fillColor: '#212529', fillOpacity: 0.4,
+            stroke: false, interactive: false
+        }).addTo(map);
     } catch (error) {
-      console.error("Erro ao deletar denúncia:", error)
-      showAlert("Erro ao deletar denúncia.", "error")
+        console.error("ERRO CRÍTICO ao carregar goias.geojson.", error);
+        alert("Não foi possível carregar o contorno do estado.");
     }
-  }
 
-  closeConfirmationModal()
+    carregarPontosAprovados();
+    map.on('click', onMapClick);
+
+    L.Control.geocoder({
+        placeholder: 'Buscar endereço ou local em Goiás...',
+        defaultMarkGeocode: false,
+        geocoder: L.Control.Geocoder.nominatim({ viewbox: [-53.2, -12.4, -49.5, -19.5], bounded: true })
+    })
+        .on('markgeocode', function (e) {
+            const center = e.geocode.center;
+            const ponto = turf.point([center.lng, center.lat]);
+            if (goiasPolygon && turf.booleanPointInPolygon(ponto, goiasPolygon)) {
+                map.setView(center, 16);
+                onMapClick({ latlng: center });
+            } else {
+                alert("O local pesquisado está fora dos limites de Goiás.");
+            }
+        })
+        .addTo(map);
 }
 
-// Utility Functions
-function formatDate(dateString) {
-  return new Date(dateString).toLocaleDateString("pt-BR")
-}
+// 2. CARREGA E EXIBE OS PONTOS APROVADOS NO MAPA
+async function carregarPontosAprovados() {
+    try {
+        const response = await fetch(`${API_URL}/pontos/aprovados`);
+        const pontos = await response.json();
 
-function getStatusText(status) {
-  const statusMap = {
-    pre_analise: "Pré-análise",
-    analise: "Em Análise",
-    resolvida: "Resolvida",
-  }
-  return statusMap[status] || status
-}
+        approvedMarkersLayer.clearLayers();
 
-function getStatusIcon(status) {
-  const iconMap = {
-    pre_analise: "exclamation-circle",
-    analise: "clock",
-    resolvida: "check-circle",
-  }
-  return iconMap[status] || "circle"
-}
-
-function showAlert(message, type = "info") {
-  // Create alert element
-  const alert = document.createElement("div")
-  alert.className = `alert alert-${type} fade-in`
-  alert.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 1rem 1.5rem;
-        border-radius: var(--radius);
-        color: white;
-        font-weight: 500;
-        z-index: 1001;
-        max-width: 400px;
-        box-shadow: 0 4px 12px var(--shadow-lg);
-    `
-
-  // Set background color based on type
-  const colors = {
-    success: "#059669",
-    error: "#dc2626",
-    warning: "#d97706",
-    info: "#2563eb",
-  }
-  alert.style.backgroundColor = colors[type] || colors.info
-
-  // Set icon based on type
-  const icons = {
-    success: "check-circle",
-    error: "exclamation-triangle",
-    warning: "exclamation-circle",
-    info: "info-circle",
-  }
-
-  alert.innerHTML = `
-        <i class="fas fa-${icons[type] || icons.info}" style="margin-right: 8px;"></i>
-        ${message}
-    `
-
-  document.body.appendChild(alert)
-
-  // Remove after 5 seconds
-  setTimeout(() => {
-    alert.style.opacity = "0"
-    alert.style.transform = "translateX(100%)"
-    setTimeout(() => {
-      if (alert.parentNode) {
-        alert.parentNode.removeChild(alert)
-      }
-    }, 300)
-  }, 5000)
-}
-
-// Keyboard shortcuts
-document.addEventListener("keydown", (e) => {
-  // ESC to close modals
-  if (e.key === "Escape") {
-    if (confirmationModal.classList.contains("active")) {
-      closeConfirmationModal()
+        pontos.forEach(ponto => {
+            L.marker([ponto.latitude, ponto.longitude])
+                .addTo(approvedMarkersLayer)
+                .bindPopup(`<b>${ponto.nome_ponto}</b><br>${ponto.descricao}`);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar pontos aprovados:', error);
     }
-    if (photoModal.classList.contains("active")) {
-      closePhotoModal()
+}
+
+// 3. LIDA COM O CLIQUE NO MAPA
+function onMapClick(e) {
+    const { lat, lng } = e.latlng;
+    const pontoClicado = turf.point([lng, lat]);
+
+    if (goiasPolygon && !turf.booleanPointInPolygon(pontoClicado, goiasPolygon)) {
+        alert("Você só pode adicionar pontos dentro do estado de Goiás.");
+        return;
     }
-  }
 
-  // Ctrl/Cmd + 1 for citizen view
-  if ((e.ctrlKey || e.metaKey) && e.key === "1") {
-    e.preventDefault()
-    switchView("citizen")
-  }
+    if (tempMarker) map.removeLayer(tempMarker);
+    tempMarker = L.marker([lat, lng]).addTo(map)
+        .bindPopup('Novo ponto ecológico será adicionado aqui.').openPopup();
 
-  // Ctrl/Cmd + 2 for manager view
-  if ((e.ctrlKey || e.metaKey) && e.key === "2") {
-    e.preventDefault()
-    switchView("manager")
-  }
-})
+    latitudeInput.value = lat;
+    longitudeInput.value = lng;
+}
+
+// 4. CARREGA OS PONTOS PENDENTES PARA A LISTA E MAPA DO GESTOR
+async function carregarPontosPendentes() {
+    try {
+        const response = await fetch(`${API_URL}/pontos/pendentes`);
+        const pontos = await response.json();
+
+        listaPendentes.innerHTML = '';
+        pendingMarkersLayer.clearLayers();
+
+        if (pontos.length === 0) {
+            listaPendentes.innerHTML = '<p>Nenhum ponto pendente de análise.</p>';
+            return;
+        }
+
+        pontos.forEach(ponto => {
+            const item = document.createElement('li');
+            item.innerHTML = `
+                <h3>${ponto.nome_ponto}</h3>
+                <p>${ponto.descricao}</p>
+                <div class="botoes-gestor">
+                    <button class="btn-aprovar" data-id="${ponto.id}">Aprovar</button>
+                    <button class="btn-recusar" data-id="${ponto.id}">Recusar</button>
+                </div>
+            `;
+            listaPendentes.appendChild(item);
+
+            const marker = L.marker([ponto.latitude, ponto.longitude], { icon: yellowIcon })
+                .addTo(pendingMarkersLayer)
+                .bindPopup(`<b>Pendente:</b> ${ponto.nome_ponto}`);
+
+            item.addEventListener('click', () => {
+                map.flyTo([ponto.latitude, ponto.longitude], 15);
+                marker.openPopup();
+            });
+        });
+    } catch (error) {
+        console.error('Erro ao carregar pontos pendentes:', error);
+    }
+}
+
+// NOVO: Função para carregar os pontos aprovados na lista do gestor
+async function carregarListaDeAprovados() {
+    try {
+        const response = await fetch(`${API_URL}/pontos/aprovados`);
+        const pontos = await response.json();
+
+        listaAprovados.innerHTML = '';
+        if (pontos.length === 0) {
+            listaAprovados.innerHTML = '<p>Nenhum ponto aprovado no mapa.</p>';
+            return;
+        }
+
+        pontos.forEach(ponto => {
+            const item = document.createElement('li');
+            item.innerHTML = `
+                <h3>${ponto.nome_ponto}</h3>
+                <p>${ponto.descricao}</p>
+                <div class="botoes-gestor">
+                    <button class="btn-recusar" data-id="${ponto.id}">Excluir do Mapa</button>
+                </div>
+            `;
+            listaAprovados.appendChild(item);
+        });
+    } catch (error) {
+        console.error('Erro ao carregar lista de aprovados:', error);
+    }
+}
+
+// --- EVENT LISTENERS ---
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!latitudeInput.value || !longitudeInput.value) {
+        alert('Por favor, clique no mapa para selecionar uma localização.');
+        return;
+    }
+    const dados = {
+        nome_ponto: document.getElementById('nome_ponto').value,
+        descricao: document.getElementById('descricao').value,
+        latitude: latitudeInput.value,
+        longitude: longitudeInput.value
+    };
+    try {
+        await fetch(`${API_URL}/pontos`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+        alert('Sugestão enviada com sucesso! Aguardando análise do gestor.');
+        form.reset();
+        if (tempMarker) map.removeLayer(tempMarker);
+        tempMarker = null;
+    } catch (error) {
+        console.error('Erro ao enviar ponto:', error);
+        alert('Falha ao enviar sugestão.');
+    }
+});
+
+// Listeners de navegação principal
+btnCidadao.addEventListener('click', () => {
+    viewCidadao.classList.remove('hidden');
+    viewGestor.classList.add('hidden');
+    btnCidadao.classList.add('active');
+    btnGestor.classList.remove('active');
+    if (map.hasLayer(pendingMarkersLayer)) {
+        map.removeLayer(pendingMarkersLayer);
+    }
+});
+
+btnGestor.addEventListener('click', () => {
+    viewGestor.classList.remove('hidden');
+    viewCidadao.classList.add('hidden');
+    btnGestor.classList.add('active');
+    btnCidadao.classList.remove('active');
+    map.addLayer(pendingMarkersLayer);
+    carregarPontosPendentes();
+    // Garante que a aba de pendentes seja a padrão
+    btnTabPendentes.click();
+});
+
+// Listeners das abas do gestor
+btnTabPendentes.addEventListener('click', () => {
+    tabPendentes.classList.remove('hidden');
+    tabAprovados.classList.add('hidden');
+    btnTabPendentes.classList.add('active');
+    btnTabAprovados.classList.remove('active');
+    map.addLayer(pendingMarkersLayer); // Mostra marcadores amarelos
+    carregarPontosPendentes();
+});
+
+btnTabAprovados.addEventListener('click', () => {
+    tabAprovados.classList.remove('hidden');
+    tabPendentes.classList.add('hidden');
+    btnTabAprovados.classList.add('active');
+    btnTabPendentes.classList.remove('active');
+    if (map.hasLayer(pendingMarkersLayer)) { // Esconde marcadores amarelos
+        map.removeLayer(pendingMarkersLayer);
+    }
+    carregarListaDeAprovados();
+});
+
+
+// Listener para a lista de PENDENTES (Aprovar/Recusar)
+listaPendentes.addEventListener('click', async (e) => {
+    const id = e.target.dataset.id;
+    if (!id) return;
+
+    if (e.target.classList.contains('btn-aprovar')) {
+        await fetch(`${API_URL}/pontos/${id}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'aprovado' })
+        });
+        alert('Ponto aprovado e adicionado ao mapa!');
+        carregarPontosAprovados(); // Recarrega os pontos azuis no mapa
+    }
+
+    if (e.target.classList.contains('btn-recusar')) {
+        await fetch(`${API_URL}/pontos/${id}`, { method: 'DELETE' });
+        alert('Ponto recusado e removido.');
+    }
+
+    carregarPontosPendentes(); // Recarrega a lista de pendentes
+});
+
+// NOVO: Listener para a lista de APROVADOS (Excluir)
+listaAprovados.addEventListener('click', async (e) => {
+    const id = e.target.dataset.id;
+    if (!id) return;
+
+    if (e.target.classList.contains('btn-recusar')) { // Usamos a mesma classe de botão para deletar
+        if (confirm(`Tem certeza que deseja excluir o ponto #${id} do mapa?`)) {
+            await fetch(`${API_URL}/pontos/${id}`, { method: 'DELETE' });
+            alert('Ponto removido do mapa.');
+            carregarPontosAprovados(); // Recarrega os pontos azuis no mapa
+            carregarListaDeAprovados(); // Recarrega a lista de aprovados
+        }
+    }
+});
+
+// --- INICIALIZAÇÃO DO SCRIPT ---
+inicializarMapa();

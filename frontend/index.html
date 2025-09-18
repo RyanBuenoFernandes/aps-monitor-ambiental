@@ -4,209 +4,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EcoGO - Sistema de Denúncias Ambientais</title>
+    <title>Mapa Ecológico de Goiás</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     <link rel="stylesheet" href="styles.css">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
-    <!-- Navigation Header -->
-    <header class="header">
-        <div class="header-container">
-            <div class="header-brand">
-                <div class="brand-icon">
-                    <i class="fas fa-leaf"></i>
-                </div>
-                <div class="brand-text">
-                    <h1>EcoGO</h1>
-                    <p>Sistema de Denúncias Ambientais</p>
-                </div>
-            </div>
-            <div class="header-nav">
-                <button id="citizenBtn" class="nav-btn active">
-                    <i class="fas fa-users"></i>
-                    <span>Cidadão</span>
-                </button>
-                <button id="managerBtn" class="nav-btn">
-                    <i class="fas fa-cogs"></i>
-                    <span>Gestor</span>
-                </button>
-            </div>
-        </div>
-    </header>
 
-    <main class="main-container">
-        <!-- Citizen View -->
-        <div id="citizenView" class="view-container active">
-            <!-- Hero Section -->
-            <div class="hero-section">
-                <h2>Reporte Problemas Ambientais</h2>
-                <p>Ajude a proteger o meio ambiente reportando problemas em sua região. Sua denúncia faz a diferença
-                    para um futuro mais sustentável.</p>
-            </div>
+    <div class="main-container">
+        <div class="panel">
+            <header>
+                <h1>Mapa Ecológico de Goiás</h1>
+                <p>Sugira pontos ecológicos ou gerencie as sugestões.</p>
+                <nav>
+                    <button id="btn-cidadao" class="active">Sugerir Ponto</button>
+                    <button id="btn-gestor">Painel do Gestor</button>
+                </nav>
+            </header>
 
-            <!-- Tabs -->
-            <div class="tabs-container">
-                <div class="tabs-list">
-                    <button class="tab-btn active" data-tab="report">
-                        <i class="fas fa-upload"></i>
-                        <span>Nova Denúncia</span>
-                    </button>
-                    <button class="tab-btn" data-tab="track">
-                        <i class="fas fa-search"></i>
-                        <span>Minhas Denúncias</span>
-                    </button>
-                </div>
-
-                <!-- Report Tab -->
-                <div id="reportTab" class="tab-content active">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-upload"></i> Fazer Nova Denúncia</h3>
-                            <p>Preencha os dados abaixo para registrar um problema ambiental</p>
-                        </div>
-                        <div class="card-content">
-                            <form id="complaintForm" class="form">
-                                <div class="form-group">
-                                    <label for="nome_cidadao">Seu Nome</label>
-                                    <input type="text" id="nome_cidadao" name="nome_cidadao"
-                                        placeholder="Digite seu nome completo" required>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="local_problema">
-                                        <i class="fas fa-map-marker-alt"></i> Local do Problema
-                                    </label>
-                                    <input type="text" id="local_problema" name="local_problema"
-                                        placeholder="Rua, Bairro, Cidade" required>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="descricao">Descrição Detalhada</label>
-                                    <textarea id="descricao" name="descricao"
-                                        placeholder="Descreva o problema ambiental observado..." rows="4"
-                                        required></textarea>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="foto">
-                                        <i class="fas fa-image"></i> Anexar Foto
-                                    </label>
-                                    <div class="file-upload">
-                                        <input type="file" id="foto" name="foto" accept="image/*" required>
-                                        <p>Selecione uma imagem que comprove o problema</p>
-                                    </div>
-                                </div>
-
-                                <button type="submit" class="btn-primary" id="submitBtn">
-                                    Registrar Denúncia
-                                </button>
-                            </form>
-                        </div>
+            <div id="view-cidadao">
+                <h2>Sugerir um Novo Ponto Ecológico</h2>
+                <p class="instructions">Clique no mapa para selecionar a localização do ponto e preencha os dados
+                    abaixo.</p>
+                <form id="ponto-form">
+                    <div class="form-group">
+                        <label for="nome_ponto">Nome do Ponto:</label>
+                        <input type="text" id="nome_ponto" required placeholder="Ex: Parque Areião">
                     </div>
+                    <div class="form-group">
+                        <label for="descricao">Descrição:</label>
+                        <textarea id="descricao" rows="4" required
+                            placeholder="Descreva por que este local é um ponto ecológico."></textarea>
+                    </div>
+                    <input type="hidden" id="latitude" required>
+                    <input type="hidden" id="longitude" required>
+                    <button type="submit">Enviar Sugestão</button>
+                </form>
+            </div>
+
+            <div id="view-gestor" class="hidden">
+                <nav>
+                    <button id="btn-tab-pendentes" class="active">Aprovar Pendentes</button>
+                    <button id="btn-tab-aprovados">Gerenciar Aprovados</button>
+                </nav>
+
+                <div id="tab-pendentes">
+                    <h2>Aprovar Pontos Pendentes</h2>
+                    <ul id="lista-pendentes">
+                    </ul>
                 </div>
 
-                <!-- Track Tab -->
-                <div id="trackTab" class="tab-content">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-search"></i> Consultar Minhas Denúncias</h3>
-                            <p>Digite seu nome para visualizar o status das suas denúncias</p>
-                        </div>
-                        <div class="card-content">
-                            <div class="search-container">
-                                <input type="text" id="searchName" placeholder="Digite seu nome completo">
-                                <button id="searchBtn" class="btn-primary">
-                                    <i class="fas fa-search"></i> Consultar
-                                </button>
-                            </div>
-
-                            <div id="userComplaints" class="complaints-container"></div>
-                        </div>
-                    </div>
+                <div id="tab-aprovados" class="hidden">
+                    <h2>Gerenciar Pontos no Mapa</h2>
+                    <ul id="lista-aprovados">
+                    </ul>
                 </div>
             </div>
         </div>
 
-        <!-- Manager View -->
-        <div id="managerView" class="view-container">
-            <div class="hero-section">
-                <h2>Painel do Gestor</h2>
-                <p>Gerencie todas as denúncias ambientais através do sistema Kanban. Arraste os cards entre as colunas
-                    para atualizar o status.</p>
-            </div>
-
-            <div id="kanbanBoard" class="kanban-board">
-                <div class="kanban-column" data-status="pre_analise">
-                    <div class="column-header pre-analise">
-                        <div class="column-title">
-                            <i class="fas fa-exclamation-circle"></i>
-                            <h3>Pré-Análise</h3>
-                        </div>
-                        <span class="column-count">0</span>
-                    </div>
-                    <div class="column-content" id="preAnaliseColumn"></div>
-                </div>
-
-                <div class="kanban-column" data-status="analise">
-                    <div class="column-header analise">
-                        <div class="column-title">
-                            <i class="fas fa-clock"></i>
-                            <h3>Em Análise</h3>
-                        </div>
-                        <span class="column-count">0</span>
-                    </div>
-                    <div class="column-content" id="analiseColumn"></div>
-                </div>
-
-                <div class="kanban-column" data-status="resolvida">
-                    <div class="column-header resolvida">
-                        <div class="column-title">
-                            <i class="fas fa-check-circle"></i>
-                            <h3>Resolvidas</h3>
-                        </div>
-                        <span class="column-count">0</span>
-                    </div>
-                    <div class="column-content" id="resolvidaColumn"></div>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Confirmation Modal -->
-    <div id="confirmationModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">Confirmar Ação</h3>
-                <button class="modal-close" id="modalClose">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <p id="modalDescription">Você tem certeza?</p>
-            </div>
-            <div class="modal-footer">
-                <button id="modalCancel" class="btn-secondary">Cancelar</button>
-                <button id="modalConfirm" class="btn-danger">Confirmar</button>
-            </div>
-        </div>
+        <div id="map"></div>
     </div>
 
-    <!-- Photo Modal -->
-    <div id="photoModal" class="modal">
-        <div class="modal-content photo-modal">
-            <div class="modal-header">
-                <h3>Foto da Denúncia</h3>
-                <button class="modal-close" id="photoModalClose">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <img id="photoModalImage" src="/placeholder.svg" alt="Foto da denúncia">
-            </div>
-        </div>
-    </div>
-
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script src='https://unpkg.com/@turf/turf@6/turf.min.js'></script>
     <script src="script.js"></script>
 </body>
 
